@@ -19,6 +19,16 @@ load_dotenv()
 app = Flask(__name__)
 
 
+def normalize_superset_domain(value):
+    """Ensure Superset domain is an absolute URL with scheme."""
+    if not value:
+        return value
+    stripped_value = value.strip()
+    if stripped_value.startswith(("http://", "https://")):
+        return stripped_value.rstrip("/")
+    return f"https://{stripped_value.rstrip('/')}"
+
+
 KEY_DIR = "keys"
 PRIVATE_KEY_PATH = os.path.join(KEY_DIR, "embedded-example-private-key.pem")
 PUBLIC_KEY_PATH = os.path.join(KEY_DIR, "embedded-example-public-key.pem")
@@ -28,7 +38,9 @@ app.config.from_mapping(
         "API_TOKEN": os.environ.get("API_TOKEN"),
         "API_SECRET": os.environ.get("API_SECRET"),
         "DASHBOARD_ID": os.environ.get("DASHBOARD_ID"),
-        "SUPERSET_DOMAIN": os.environ.get("SUPERSET_DOMAIN"),
+        "SUPERSET_DOMAIN": normalize_superset_domain(
+            os.environ.get("SUPERSET_DOMAIN"),
+        ),
         "PRESET_TEAM": os.environ.get("PRESET_TEAM"),
         "WORKSPACE_SLUG": os.environ.get("WORKSPACE_SLUG"),
         "PRESET_BASE_URL": URL("https://api.app.preset.io/"),

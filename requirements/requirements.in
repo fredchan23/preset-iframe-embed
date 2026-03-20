@@ -1,4 +1,6 @@
 Flask
+gunicorn
+PyJWT
 python-dotenv
 requests
 yarl

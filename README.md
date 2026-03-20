@@ -29,7 +29,7 @@ _Refer to [this page](https://api-docs.preset.io/#intro) to check how to create 
 Make sure you have already enabled the **Embedded mode** for the dashboard you would like to use with this app. Refer to [this page](https://docs.preset.io/docs/step-1-preparation#collect-the-information) for further instructions. Replace these values with the information retrieved from the Embedded modal (from Preset):
 
 - Replace `your_dashboard_id_here` with your **Embedded Dashboard ID** (line 8).
-- Replace `your_superset_domain_here` with your **Superset Domain** (line 9).
+- Replace `your_superset_domain_here` with your **Superset Domain** (line 9). You can use either `https://<your-domain>` or just `<your-domain>`.
 - Replace `your_preset_team_here` with your **Team ID** (line 10).
 - Replace `your_workspace_slug_here` with your **Workspace ID** (line 11).
 
@@ -49,6 +49,78 @@ Make sure you have already enabled the **Embedded mode** for the dashboard you w
 
 1. Once testing is done, press <kbd>control + C</kbd> in the terminal to stop the Flask app.
 2. Deactivate the virtual environment.
+
+## Deploying to GCP Cloud Run
+
+This repository includes a [Dockerfile](Dockerfile) and can be deployed directly to Cloud Run.
+
+### Prerequisites
+
+1. Install and log in to gcloud CLI.
+2. Create or select a GCP project.
+3. Enable billing for the project.
+
+### One-time setup
+
+1. Set project and region:
+
+```bash
+gcloud config set project YOUR_GCP_PROJECT_ID
+gcloud config set run/region asia-southeast1
+```
+
+2. Enable required services:
+
+```bash
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
+```
+
+### Deploy
+
+1. Create secrets once:
+
+```bash
+printf "%s" "YOUR_API_TOKEN" | gcloud secrets create preset-api-token --data-file=-
+printf "%s" "YOUR_API_SECRET" | gcloud secrets create preset-api-secret --data-file=-
+```
+
+2. Grant the Cloud Run service account access to read secrets (required before deploying with `--set-secrets`):
+
+```bash
+gcloud projects add-iam-policy-binding YOUR_GCP_PROJECT_ID \
+  --member=serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com \
+  --role=roles/secretmanager.secretAccessor
+```
+
+Replace `YOUR_GCP_PROJECT_ID` and `YOUR_PROJECT_NUMBER` with your actual values (visible from `gcloud projects describe YOUR_GCP_PROJECT_ID`).
+
+3. Deploy from the repository root:
+
+```bash
+gcloud run deploy embedded-example \
+  --source . \
+  --platform managed \
+  --allow-unauthenticated \
+  --port 8080 \
+  --set-env-vars DASHBOARD_ID=33c923c0-102e-4b21-9177-e95a1893e9fa,SUPERSET_DOMAIN=https://cd5cac01.ap1a.app.preset.io,PRESET_TEAM=cdab5c6d,WORKSPACE_SLUG=cd5cac01 \
+  --set-secrets API_TOKEN=preset-api-token:latest,API_SECRET=preset-api-secret:latest
+```
+
+After deployment, Cloud Run prints a public HTTPS URL for your app.
+
+### Preset configuration
+
+1. In Preset Manager, add your Cloud Run URL domain to the allowed embedding domains.
+2. Open the Cloud Run URL in the browser and test loading the dashboard.
+
+### Troubleshooting
+
+| Error | Cause | Fix |
+|---|---|---|
+| `HTTP 503` on Cloud Run URL | App crashes at startup | Check logs: `gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="embedded-example"' --limit=20` |
+| `ModuleNotFoundError: No module named 'jwt'` | `PyJWT` missing from requirements | Add `PyJWT` to `requirements/requirements.in`, recompile, redeploy |
+| `Permission denied on secret ... secretAccessor` | Cloud Run service account lacks Secret Manager access | Grant `roles/secretmanager.secretAccessor` to the compute service account (step 2 above) |
+| iframe URL points to `http://127.0.0.1/...` instead of Preset | `SUPERSET_DOMAIN` missing `https://` | Set value with scheme, e.g. `https://cd5cac01.ap1a.app.preset.io` (the app normalises bare domains automatically) |
 
 ## Changing the app configurations
 
